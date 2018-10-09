@@ -6,7 +6,7 @@
 
 ### 筆記
 
- * [nanomsg-1.1.4 IOCP 代碼分析][nanomsg_iocp.md]
+ * [nanomsg-1.1.4 IOCP 代碼分析][https://github.com/Jueliang/nanomsg_learn/blob/master/nanomsg_iocp.md]
 
 
 ### [nng][nng]
