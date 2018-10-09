@@ -71,8 +71,8 @@ BOOL ReadFileEx(
   DWORD                           nNumberOfBytesToRead,
   LPOVERLAPPED                    lpOverlapped,
   LPOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
-);```
-
+);
+```
 
 #### [WriteFileEx()][WriteFileEx]、[WSASend()][WSASend]、[WSASendTo()][WSASendTo]
 
