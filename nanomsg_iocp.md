@@ -3,9 +3,20 @@
 ### 參考
 
  * [Windows I/O Completion Ports](https://docs.microsoft.com/en-us/windows/desktop/FileIO/i-o-completion-ports)
+ * 郭仁祥的 [IOCP 浅析](https://www.ibm.com/developerworks/cn/java/j-lo-iocp/)
 
+## Windows I/O completion port 功能簡介
 
-## Windows I/O completion port
+### IOCP 相關函數
+
+ * [CreateIoCompletionPort()](https://docs.microsoft.com/zh-cn/windows/desktop/FileIO/createiocompletionport)： 創建 IOCP 句柄，以及將其他設備關聯到 IOCP；
+ * [PostQueuedCompletionStatus()](https://msdn.microsoft.com/en-us/library/aa365458(v=vs.85).aspx)
+ * [GetQueuedCompletionStatus()](https://msdn.microsoft.com/en-us/library/Aa364986(v=VS.85).aspx)： 得到 I/O 操作结果；
+ * [GetQueuedCompletionStatusEx()](https://msdn.microsoft.com/en-us/library/aa364988(v=vs.85).aspx)： 得到 I/O 操作结果；
+ * [GetOverlappedResult()](https://msdn.microsoft.com/7f999959-9b22-4491-ae2b-a2674d821110)
+ * [GetOverlappedResultEx()](https://msdn.microsoft.com/2f77f7fe-bdde-4c52-8571-fe0ab533aa7f)
+
+nanomsg_iocp.md
 
 ### `PostQueuedCompletionStatus()` 的功能
 
