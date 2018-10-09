@@ -9,12 +9,12 @@
 
 ### IOCP 相關函數
 
- * [CreateIoCompletionPort()](https://docs.microsoft.com/zh-cn/windows/desktop/FileIO/createiocompletionport)： 創建 IOCP 句柄，以及將其他設備關聯到 IOCP；
- * [PostQueuedCompletionStatus()](https://msdn.microsoft.com/en-us/library/aa365458(v=vs.85).aspx)
- * [GetQueuedCompletionStatus()](https://msdn.microsoft.com/en-us/library/Aa364986(v=VS.85).aspx)： 得到 I/O 操作结果；
- * [GetQueuedCompletionStatusEx()](https://msdn.microsoft.com/en-us/library/aa364988(v=vs.85).aspx)： 得到 I/O 操作结果；
- * [GetOverlappedResult()](https://msdn.microsoft.com/7f999959-9b22-4491-ae2b-a2674d821110)
- * [GetOverlappedResultEx()](https://msdn.microsoft.com/2f77f7fe-bdde-4c52-8571-fe0ab533aa7f)
+ * [CreateIoCompletionPort()](https://docs.microsoft.com/zh-cn/windows/desktop/FileIO/createiocompletionport): 創建 IOCP 句柄，以及將其他設備關聯到 IOCP；
+ * [PostQueuedCompletionStatus()](https://msdn.microsoft.com/en-us/library/aa365458.aspx): Posts an I/O completion packet to an I/O completion port.
+ * [GetQueuedCompletionStatus()](https://msdn.microsoft.com/en-us/library/Aa364986.aspx): 从 IOCP 取出一个成功I/O操作的完成包(CP)
+ * [GetQueuedCompletionStatusEx()](https://msdn.microsoft.com/en-us/library/aa364988.aspx): 同上，但获取多個 CP
+ * [GetOverlappedResult()](https://msdn.microsoft.com/7f999959-9b22-4491-ae2b-a2674d821110): 取回 overlapped 操作的結果
+ * [GetOverlappedResultEx()](https://msdn.microsoft.com/2f77f7fe-bdde-4c52-8571-fe0ab533aa7f): 同上，但可以指定等待時間
 
 nanomsg_iocp.md
 
