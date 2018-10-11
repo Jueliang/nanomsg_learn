@@ -5,11 +5,14 @@
 
 参考：
 
+ * [nanomsg源码阅读（一）](https://blog.abstiger.com/source-reading-nanomsg-1/)
+ * [nanomsg源码阅读（二）](https://blog.abstiger.com/source-reading-nanomsg-2/)
+ * [nanomsg源码阅读（三）](https://blog.abstiger.com/source-reading-nanomsg-3/)
+ * [关于IO](https://blog.abstiger.com/thoughts-about-io/)
+
+ZMQ 参考：
+
  * 云风： [ZeroMQ 的模式](https://blog.codingnow.com/2011/02/zeromq_message_patterns.html)
-
-### 筆記
-
- * [nanomsg-1.1.4 IOCP 代碼分析](https://github.com/Jueliang/nanomsg_learn/blob/master/nanomsg_iocp.md)
  * [ZMQ 指南](https://github.com/anjuke/zguide-cn)
  * [ZeroMQ及其模式](https://zhuanlan.zhihu.com/p/22947038)
  * CSDN: [zeromq源代码分析1------基本工作流程分析](https://blog.csdn.net/kaka11/article/details/6614479)
@@ -22,6 +25,11 @@
  * CSDN: [zeromq源代码分析6-1------zeromq各种类型的socket之socket_base](https://blog.csdn.net/kaka11/article/details/6626131)
  * CSDN: [zeromq源代码分析6-2------REQ和REP](https://blog.csdn.net/kaka11/article/details/6626318)
  * CSDN: [zeromq源代码分析6-3------ROUTER和DEALER](https://blog.csdn.net/kaka11/article/details/6630303)
+
+### 筆記
+
+ * [nanomsg-1.1.4 IOCP 代碼分析](https://github.com/Jueliang/nanomsg_learn/blob/master/nanomsg_iocp.md)
+ 
 
 
 ### [nng][nng]
