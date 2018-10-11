@@ -1,5 +1,7 @@
 # [nanomsg-1.1.4](https://nanomsg.org/) Windows 平台的 IOCP 代碼分析 
 
+笔记写得比较乱，只是记录自己学习 nanomsg 的一些过程。
+
 參考: [Windows I/O Completion Ports](https://docs.microsoft.com/en-us/windows/desktop/FileIO/i-o-completion-ports)
 
 ## Windows I/O completion port 功能簡介
@@ -232,20 +234,6 @@ src/aio/worker_win.inc(130): HANDLE nn_worker_getcp (struct nn_worker *self)
  * `GetOverlappedResult()`        ： 未使用；
  * `GetOverlappedResultEx()`      ： 未使用。
 
-[CreateIoCompletionPort]: https://docs.microsoft.com/zh-cn/windows/desktop/FileIO/createiocompletionport
-[PostQueuedCompletionStatus]: https://msdn.microsoft.com/en-us/library/aa365458.aspx
-[GetQueuedCompletionStatus]: https://msdn.microsoft.com/en-us/library/Aa364986.aspx
-[GetQueuedCompletionStatusEx]: https://msdn.microsoft.com/en-us/library/aa364988.aspx
-[GetOverlappedResult]: https://msdn.microsoft.com/7f999959-9b22-4491-ae2b-a2674d821110
-[GetOverlappedResultEx]: https://msdn.microsoft.com/2f77f7fe-bdde-4c52-8571-fe0ab533aa7f
-[ReadFile]: https://docs.microsoft.com/en-us/windows/desktop/api/FileAPI/nf-fileapi-readfile
-[ReadFileEx]: https://msdn.microsoft.com/6c1a4de1-6cae-4c35-bfba-0bc252fadbd9
-[WriteFile]: https://docs.microsoft.com/en-us/windows/desktop/api/FileAPI/nf-fileapi-writefile
-[WriteFileEx]: https://msdn.microsoft.com/6995c4ee-ba91-41d5-b72d-19dc2eb95945
-[WSASend]: https://msdn.microsoft.com/library/windows/desktop/ms742203
-[WSASendTo]: https://msdn.microsoft.com/library/windows/desktop/ms741693
-[WSARecv]: https://msdn.microsoft.com/library/windows/desktop/ms741688
-[WSARecvFrom]: https://msdn.microsoft.com/library/windows/desktop/ms741686
 
 
 ## nanomsg IOCP 工作过程
@@ -346,3 +334,181 @@ static void nn_global_init (void)
 ```
 由源代码可知，nn_pool_init() 只会被调用一次，也即 IOCP 在整个进程内只会被创建一次。
 
+这里的 self，是 src/core/global.c 里面的一个静态对象： static struct nn_global self; 不过为什么要叫做 self 呢？
+
+小结一下 IOCP 创建的过程：
+
+> App => nn_socket() => nn_global_init() => nn_pool_init() => nn_worker_init() => CreateIoCompletionPort()
+
+### 创建线程
+
+Windows 平台下，nanomsg 创建线程是通过 src/utils/thread_win.inc() 里面的 nn_thread_init() 函数：
+
+```C
+void nn_thread_init (struct nn_thread *self,
+    nn_thread_routine *routine, void *arg)
+{
+    self->routine = routine;
+    self->arg = arg;
+    self->handle = (HANDLE) _beginthreadex (NULL, 0,
+        nn_thread_main_routine, (void*) self, 0 , NULL);
+    win_assert (self->handle != NULL);
+}
+```
+
+nanomsg 未使用 CreateThread() 来创建线程。
+
+nn_thread_init() 被 src/aio/worker_win.inc 内的 nn_worker_init）所调用：
+
+```C
+int nn_worker_init (struct nn_worker *self)
+{
+    self->cp = CreateIoCompletionPort (INVALID_HANDLE_VALUE, NULL, 0, 0);
+    win_assert (self->cp);
+    nn_timerset_init (&self->timerset);
+    nn_thread_init (&self->thread, nn_worker_routine, self);
+
+    return 0;
+}
+```
+
+另外一个调用了 nn_thread_init() 的地方，是 src/devices/device.c 的 nn_device_twoway() 函数，用于两个 socket 之间转发。按过不表。
+
+查询源码可知，nn_worker_init() 只被调用过一次，就是 src/aio/pool.c 内的 nn_pool_init() 函数：
+
+```C
+int nn_pool_init (struct nn_pool *self)
+{
+    return nn_worker_init (&self->worker);
+}
+```
+
+前面分析过，nn_pool_init() 只被调用过一次。
+
+小结一下线程创建过程:
+
+> App => nn_socket() => nn_global_init() => nn_pool_init() => nn_worker_init() => nn_thread_init() => _beginthreadex()
+
+### 工作线程
+
+工作线程 nn_worker_routine() 有 nn_worker_init() 创建。工作线程实现的代码在 src/aio/worker_win.inc() 内：
+
+```C
+static void nn_worker_routine (void *arg){
+    ...
+    OVERLAPPED_ENTRY entries [NN_WORKER_MAX_EVENTS];
+    struct nn_worker_op *op;
+    ...
+    while (1) {
+        ...
+        brc = GetQueuedCompletionStatusEx (self->cp, entries,
+            NN_WORKER_MAX_EVENTS, &count, timeout < 0 ? INFINITE : timeout,
+            FALSE);
+        ...
+        for (i = 0; i != count; ++i) {
+
+            /*  Process I/O completion events. */
+            if (nn_fast (entries [i].lpOverlapped != NULL)) {
+                DWORD nxfer;
+                op = nn_cont (entries [i].lpOverlapped,
+                    struct nn_worker_op, olpd);
+                rc = entries [i].Internal & 0xc0000000;
+                switch (rc) {
+                case 0x00000000:
+                     nxfer = entries[i].dwNumberOfBytesTransferred;
+                     if (op->start != NULL) {
+                         op->resid -= nxfer;
+                         op->buf += nxfer;
+
+                         /*  If we still have more to transfer, keep going. */
+                         if (op->resid != 0) {
+                             op->start (op->arg);
+                             continue;
+                         }
+                     }
+                     rc = NN_WORKER_OP_DONE;
+                     break;
+                ...
+                default:
+                     continue;
+                }
+
+                /*  Raise the completion event. */
+                nn_ctx_enter (op->owner->ctx);
+                nn_assert (op->state != NN_WORKER_OP_STATE_IDLE);
+
+                op->state = NN_WORKER_OP_STATE_IDLE;
+
+                nn_fsm_feed (op->owner, op->src, rc, op);
+                nn_ctx_leave (op->owner->ctx);
+
+                continue;
+            }
+            ...
+            /*  Process tasks. */
+            task = (struct nn_worker_task*) entries [i].lpCompletionKey;
+            nn_ctx_enter (task->owner->ctx);
+            nn_fsm_feed (task->owner, task->src,
+                NN_WORKER_TASK_EXECUTE, task);
+            nn_ctx_leave (task->owner->ctx);
+        }
+    }
+}
+```
+
+为简洁起见，上面源码省略掉了错误处理。
+
+从该代码可知，IOCP 调用 GetQueuedCompletionStatusEx() 来取出完成的 I/O packet，然后调用对应的 nn_worker_op 的 start 函数来处理该 packet。
+
+### CP packet 处理函数
+
+通过前面的分析可知，GetQueuedCompletionStatusEx() 取出已经完成的 I/O packet 后，调用 nn_worker_op 的 start 函数来处理该 packet。
+
+nn_worker_op 定义在 src/aio/worker_win.h 内：
+
+```C
+struct nn_worker_op {
+    ...
+    OVERLAPPED olpd;
+
+    size_t resid;
+    char *buf;
+    void *arg;
+    void (*start)(struct nn_usock *);
+    ...
+};
+```
+
+那么 nn_worker_op::start 什么时候设置呢？就在 src/aio/usock_win.inc 的 nn_usock_recv() 内：
+
+```C
+void nn_usock_recv (struct nn_usock *self, void *buf, size_t len, int *fd)
+{
+    ...
+    if (self->domain == AF_UNIX) {
+        self->in.start = nn_usock_recv_start_pipe;
+    }
+    else {
+        self->in.start = nn_usock_recv_start_wsock;
+    }
+
+    self->in.start (self->in.arg);
+}
+```
+
+
+
+[CreateIoCompletionPort]: https://docs.microsoft.com/zh-cn/windows/desktop/FileIO/createiocompletionport
+[PostQueuedCompletionStatus]: https://msdn.microsoft.com/en-us/library/aa365458.aspx
+[GetQueuedCompletionStatus]: https://msdn.microsoft.com/en-us/library/Aa364986.aspx
+[GetQueuedCompletionStatusEx]: https://msdn.microsoft.com/en-us/library/aa364988.aspx
+[GetOverlappedResult]: https://msdn.microsoft.com/7f999959-9b22-4491-ae2b-a2674d821110
+[GetOverlappedResultEx]: https://msdn.microsoft.com/2f77f7fe-bdde-4c52-8571-fe0ab533aa7f
+[ReadFile]: https://docs.microsoft.com/en-us/windows/desktop/api/FileAPI/nf-fileapi-readfile
+[ReadFileEx]: https://msdn.microsoft.com/6c1a4de1-6cae-4c35-bfba-0bc252fadbd9
+[WriteFile]: https://docs.microsoft.com/en-us/windows/desktop/api/FileAPI/nf-fileapi-writefile
+[WriteFileEx]: https://msdn.microsoft.com/6995c4ee-ba91-41d5-b72d-19dc2eb95945
+[WSASend]: https://msdn.microsoft.com/library/windows/desktop/ms742203
+[WSASendTo]: https://msdn.microsoft.com/library/windows/desktop/ms741693
+[WSARecv]: https://msdn.microsoft.com/library/windows/desktop/ms741688
+[WSARecvFrom]: https://msdn.microsoft.com/library/windows/desktop/ms741686
