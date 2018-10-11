@@ -273,3 +273,76 @@ posix 版 nn_worker_routine() 在 src\aio\worker_posix.inc 内实现，与 windo
 
 关于 posix 版的实现，在此且按过不表。
 
+再来看看何处调用了 nn_worker_init():
+
+```
+find . -name "*.[ch]" -o -name "*.inc" | xargs -r -n1 grep -Hn "nn_worker_init"
+```
+
+发现只有一处：
+
+```
+src/aio/pool.c:30:    return nn_worker_init (&self->worker);
+```
+
+源代码如下：
+
+```C
+int nn_pool_init (struct nn_pool *self)
+{
+    return nn_worker_init (&self->worker);
+}
+```
+
+而调用 nn_pool_init() 的也只有一处：
+
+```
+src/core/global.c:265:    nn_pool_init (&self.pool);
+```
+源代码如下：
+
+```C
+static void nn_global_init (void){
+    ...
+    
+    /*  Start the worker threads. */
+    nn_pool_init (&self.pool);
+}
+```  
+
+唯有 src/core/global.c 调用了 nn_global_init()
+```C
+int nn_socket (int domain, int protocol){
+    ...
+    nn_global_init ();
+    ...
+}
+```    
+
+那么每一个实际的应用，都需要调用 nn_socket()，而且可能多次调用。这样的话，nn_global_init() 也会被多次调用。
+那么 nn_pool_init() 会不会被多次调用呢？进一步说，IOCP 会不会被创建多个？
+
+让我们来看一下 nn_global_init() 的代码: 
+
+```C
+static void nn_global_init (void)
+{
+    ...
+    
+    /*  Check whether the library was already initialised. If so, do nothing. */
+    if (self.socks)
+        return;
+
+    /*  Allocate the global table of SP sockets. */
+    self.socks = nn_alloc ((sizeof (struct nn_sock*) * NN_MAX_SOCKETS) +
+        (sizeof (uint16_t) * NN_MAX_SOCKETS), "socket table");
+    alloc_assert (self.socks);
+    
+    ...
+
+    /*  Start the worker threads. */
+    nn_pool_init (&self.pool);
+}
+```
+由源代码可知，nn_pool_init() 只会被调用一次，也即 IOCP 在整个进程内只会被创建一次。
+
