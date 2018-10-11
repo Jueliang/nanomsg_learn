@@ -3,6 +3,9 @@
  * [nanomsg 官網: https://nanomsg.org/][nanomsg]
  * [nanomsg github: https://github.com/nanomsg/nanomsg](https://github.com/nanomsg/nanomsg)
 
+参考：
+
+ * 云风： [ZeroMQ 的模式](https://blog.codingnow.com/2011/02/zeromq_message_patterns.html)
 
 ### 筆記
 
