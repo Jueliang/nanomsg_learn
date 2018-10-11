@@ -1,4 +1,4 @@
-# [nanomsg-1.1.4](https://nanomsg.org/) IOCP 代碼分析 
+# [nanomsg-1.1.4](https://nanomsg.org/) Windows 平台的 IOCP 代碼分析 
 
 參考: [Windows I/O Completion Ports](https://docs.microsoft.com/en-us/windows/desktop/FileIO/i-o-completion-ports)
 
@@ -7,7 +7,11 @@
 ### IOCP 相關函數
 
  * [CreateIoCompletionPort()][CreateIoCompletionPort]: 創建 IOCP 句柄，以及將其他設備關聯到 IOCP；
- * [PostQueuedCompletionStatus()][PostQueuedCompletionStatus]: Posts an I/O completion packet to an I/O completion port.
+ * [ReadFile()][ReadFile]、[ReadFileEx()][ReadFileEx]: 發起異步讀
+ * [WriteFile()][WriteFile]、[WriteFileEx()][WriteFileEx]: 發起異步寫
+ * [WSARecv()][WSARecv]、[WSARecvFrom()][WSARecvFrom]: Socket 異步接收
+ * [WSASend()][WSASend]、[WSASendTo()][WSASendTo]: Socket 異步發送
+ * [PostQueuedCompletionStatus()][PostQueuedCompletionStatus]: Posts an I/O completion packet to an I/O completion port. 
  * [GetQueuedCompletionStatus()][GetQueuedCompletionStatus]: 从 IOCP 取出一个成功I/O操作的完成包(CP)
  * [GetQueuedCompletionStatusEx()][GetQueuedCompletionStatusEx]: 同上，但获取多個 CP
  * [GetOverlappedResult()][GetOverlappedResult]: 取回 overlapped 操作的結果
@@ -105,7 +109,7 @@ BOOL WINAPI PostQueuedCompletionStatus(
 ```
 
 
-## 查找 nanomsg 與 IOCP 相關函數
+## nanomsg 與 IOCP 相關函數
 
 ### 查找 `CreateIoCompletionPort()` 函數:
 
@@ -242,3 +246,30 @@ src/aio/worker_win.inc(130): HANDLE nn_worker_getcp (struct nn_worker *self)
 [WSASendTo]: https://msdn.microsoft.com/library/windows/desktop/ms741693
 [WSARecv]: https://msdn.microsoft.com/library/windows/desktop/ms741688
 [WSARecvFrom]: https://msdn.microsoft.com/library/windows/desktop/ms741686
+
+
+## nanomsg IOCP 工作过程
+
+### 创建 IOCP 
+
+src/aio/worker_win.inc 内的 nn_worker_init() 函数创建了 IOCP:
+
+```C
+int nn_worker_init (struct nn_worker *self)
+{
+    self->cp = CreateIoCompletionPort (INVALID_HANDLE_VALUE, NULL, 0, 0);
+    win_assert (self->cp);
+    nn_timerset_init (&self->timerset);
+    nn_thread_init (&self->thread, nn_worker_routine, self);
+
+    return 0;
+}
+```
+
+代码显示 nn_worker_init() 同时也创建了定时器集 timerset 以及 I/O 线程，线程函数是 nn_worker_routine()。
+
+posix 版的 nn_worker_init() 同样创建了定时器集 timerset 以及 I/O 线程，线程函数名称也是 nn_worker_routine()，不过 
+posix 版 nn_worker_routine() 在 src\aio\worker_posix.inc 内实现，与 windows 版是不同的。
+
+关于 posix 版的实现，在此且按过不表。
+
